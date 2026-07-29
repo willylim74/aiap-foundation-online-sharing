@@ -81,13 +81,19 @@ Engineered features reflect metrics online publishers/social editors track when 
 #
 ## Train and evaluate Baseline Models
 Linear Models: 
+
 1. **Linear Regression**
+
 2. **Ridge**
+
 3. **Lasso**
 
 Non-linear models:
+
 4. **Random Forest**
+
 5. **Gradient Boosting** 
+
 6. **XGBoost**
 
 Evaluation Metrics:
@@ -100,7 +106,9 @@ Evaluation Metrics:
 We perform Random Search CV over a specified parameter grid in **'config.yaml'**, testing n_iter possible combination of hyperparameter values and evaluating each combination using 3-fold cross-validation to achieve better performance.
 
 - n_iter: 10
+
 - cv: 3
+
 - scoring: r2
 
 
@@ -150,13 +158,21 @@ This is a regression problem on a highly-skewed target.
 We select both linear and non-linear regression models, with expectation that non-linear regression models should perform better.
 
 Linear models:
+
 1. Linear Regression
+
 2. Ridge
+
 3. Lasso
 
+
 Non-linear models:
+
+
 4. Random Forest
+
 5. Gradient Boosting
+
 6. XGBoost
 
 
@@ -165,7 +181,9 @@ Non-linear models:
 We evaluate the models using the following performance metrics for regression problems:
 
 1. Mean Absolute Error
+
 2. Root Mean Square Error
+
 3. r2
 
 Predictions are performed on `log1p(shares)` (log-transformed target) and then inverted (`expm1`, clipped at 0) for share-scale metrics. Models are ranked based on R² on log scale.
