@@ -1,0 +1,88 @@
+file_path: "./data/mini_project_1_data.csv"
+target_column: shares
+
+val_test_size: 0.2
+val_size: 0.5
+
+random_state: 42
+n_iter: 10
+cv: 3
+scoring: r2
+
+hyperparameters:
+
+  Random Forest:
+    model__n_estimators: [100, 200, 300]
+    model__max_depth: [null, 10, 20, 30]
+    model__min_samples_split: [2, 5, 10]
+    model__min_samples_leaf: [1, 2, 4]
+    model__max_features: ["sqrt", "log2"]
+
+  Gradient Boosting:
+    model__n_estimators: [100, 200]
+    model__learning_rate: [0.01, 0.05, 0.1]
+    model__max_depth: [3, 5, 7]
+    model__min_samples_split: [2, 5]
+    model__min_samples_leaf: [1, 3]
+
+  XGBoost:
+    model__n_estimators: [100, 200]
+    model__learning_rate: [0.01, 0.05, 0.1]
+    model__max_depth: [3, 5, 7]
+    model__subsample: [0.8, 1.0]
+    model__colsample_bytree: [0.8, 1.0]
+    model__gamma: [0, 0.1, 0.3]
+    model__reg_alpha: [0, 0.1]
+    model__reg_lambda: [1, 1.5]
+
+
+numerical_features:
+  - timedelta
+  - n_tokens_title
+  - n_tokens_content
+  - n_unique_tokens
+  - n_non_stop_words
+  - n_non_stop_unique_tokens
+  - num_hrefs
+  - num_self_hrefs
+  - num_imgs
+  - num_videos
+  - n_comments
+  - average_token_length
+  - self_reference_min_shares
+  - self_reference_max_shares
+  - self_reference_avg_shares
+  - num_keywords
+  - kw_min_min
+  - kw_max_min
+  - kw_avg_min
+  - kw_min_max
+  - kw_max_max
+  - kw_avg_max
+  - kw_min_avg
+  - kw_max_avg
+  - kw_avg_avg
+  - lexical_density
+  - imgs_per_1k_words
+  - videos_per_1k_words
+  - media_richness
+  - self_href_ratio
+  - keyword_spread_avg
+  - keyword_quality_score
+  - self_reference_range
+  - is_weekend
+  - comments_per_1k_words
+
+nominal_features:
+  - weekday
+  - data_channel
+  - title_length_band
+  - freshness_band
+
+# ordinal_features: []
+#   - 
+
+passthrough_features: []
+#   - 
+
+
