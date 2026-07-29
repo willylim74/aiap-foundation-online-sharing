@@ -81,27 +81,27 @@ Engineered features reflect metrics online publishers/social editors track when 
 #
 ## Train and evaluate Baseline Models
 Linear Models: 
-**Linear Regression**
-**Ridge**
-**Lasso**
+1. **Linear Regression**
+2. **Ridge**
+3. **Lasso**
 
 Non-linear models:
-**Random Forest**
-**Gradient Boosting** 
-**XGBoost**
+4. **Random Forest**
+5. **Gradient Boosting** 
+6. **XGBoost**
 
 Evaluation Metrics:
-**Mean Absolute Error**
-**Root Mean Square Error**
-**r2**
+- **Mean Absolute Error**
+- **Root Mean Square Error**
+- **r2**
 
 #
 ## Hyperparameter Tuning
 We perform Random Search CV over a specified parameter grid in **'config.yaml'**, testing n_iter possible combination of hyperparameter values and evaluating each combination using 3-fold cross-validation to achieve better performance.
 
-n_iter: 10
-cv: 3
-scoring: r2
+- n_iter: 10
+- cv: 3
+- scoring: r2
 
 
 ## Final Model Evaluation
