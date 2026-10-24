@@ -1,88 +1,205 @@
-file_path: "./data/mini_project_1_data.csv"
-target_column: shares
+# =====================================================================================
+# Configuration for the news-popularity (shares) regression project.
+# Every value below is a finding or decision of the validated notebook (EDA.ipynb).
+# Relative paths are resolved against the project root (the folder that contains main.py).
+# =====================================================================================
 
-val_test_size: 0.2
-val_size: 0.5
+project:
+  name: news_popularity_shares
+  random_seed: 42
 
-random_state: 42
-n_iter: 10
-cv: 3
-scoring: r2
+paths:
+  data_file: data/mini_project_1_data.csv
+  output_dir: artifacts                      # everything the pipeline writes (never the notebook's ./outputs)
+  checkpoint_dir: artifacts/checkpoints      # resumable ledger + pickled fitted states
+  # the notebook's baseline table, used to prove that the production code reproduces the baselines exactly
+  reference_baseline_file: outputs/baseline_results.csv
 
-hyperparameters:
+# ---------------------------------------------------------------------------- target
+target:
+  name: shares
+  transform: log1p            # models are fitted to log1p(shares): raw shares are dominated by ~1% of articles (notebook s1, s5)
+  min_valid_value: 0          # rows with a missing target or target <= this are removed
+  problem_type: regression    # continuous, right-skewed -> no stratification, no class weights
 
-  Random Forest:
-    model__n_estimators: [100, 200, 300]
-    model__max_depth: [null, 10, 20, 30]
-    model__min_samples_split: [2, 5, 10]
-    model__min_samples_leaf: [1, 2, 4]
-    model__max_features: ["sqrt", "log2"]
+# ---------------------------------------------------------------------------- columns
+columns:
+  id: ID                      # time stamp in disguise (Spearman with timedelta = -0.99999): never a feature
+  url: URL                    # only used to derive pub_month, then dropped
+  categorical: [weekday, data_channel]
+  drop: [ID]                  # dropped from the feature matrix (the target is dropped separately)
+  leaky: [n_comments]         # shares / n_comments takes a handful of exact values -> leakage-suspect, excluded (notebook s2)
 
-  Gradient Boosting:
-    model__n_estimators: [100, 200]
-    model__learning_rate: [0.01, 0.05, 0.1]
-    model__max_depth: [3, 5, 7]
-    model__min_samples_split: [2, 5]
-    model__min_samples_leaf: [1, 3]
+# ---------------------------------------------------------------------------- row-level cleaning (runs once, before the split)
+cleaning:
+  normalise_text: true        # strip + lower-case the categorical columns
+  drop_invalid_target: true
+  deduplicate:
+    ignore_columns: [ID]      # exact duplicates ignoring the ID
+    unique_subset: [URL]      # one row per article URL
 
-  XGBoost:
-    model__n_estimators: [100, 200]
-    model__learning_rate: [0.01, 0.05, 0.1]
-    model__max_depth: [3, 5, 7]
-    model__subsample: [0.8, 1.0]
-    model__colsample_bytree: [0.8, 1.0]
-    model__gamma: [0, 0.1, 0.3]
-    model__reg_alpha: [0, 0.1]
-    model__reg_lambda: [1, 1.5]
+# ---------------------------------------------------------------------------- stateless column-level cleaning (DataCleaner, first pipeline step)
+column_cleaning:
+  unknown_category_label: unknown       # missing data_channel becomes an explicit level (it is informative, notebook s2)
+  # placeholder zeros of the empty articles (n_tokens_content == 0) become NaN in these columns
+  empty_article:
+    column: n_tokens_content
+    set_nan: [n_unique_tokens, n_non_stop_words, n_non_stop_unique_tokens, average_token_length]
+  # negative kw_* values are "not available" sentinels -> NaN
+  negative_sentinel_columns: [kw_min_min, kw_avg_min, kw_min_avg]
+  # missingness / sentinel indicators, added in this order BEFORE the values are blanked
+  indicators:
+    - {name: num_videos_missing,   kind: isna, column: num_videos}
+    - {name: num_imgs_missing,     kind: isna, column: num_imgs}
+    - {name: hrefs_block_missing,  kind: isna, column: num_hrefs}
+    - {name: channel_unknown,      kind: isna, column: data_channel}
+    - {name: empty_content,        kind: eq,   column: n_tokens_content, value: 0}
+    - {name: kw_min_min_sentinel,  kind: lt,   column: kw_min_min,       value: 0}
 
+# ---------------------------------------------------------------------------- feature engineering (FeatureEngineer)
+feature_engineering:
+  weekend_days: [saturday, sunday]
+  url_date_regex: '/(\d{4})/(\d{2})/'          # group 2 = publication month
+  ratio_features: true                          # imgs_per_100w, links_per_100w, external_hrefs, self_link_ratio, media_count, kw_range_avg
+  log_features: true
+  log_skew_threshold: 2.0                       # log1p-transform non-negative, non-binary columns whose TRAIN skewness exceeds this (learned in fit)
 
-numerical_features:
-  - timedelta
-  - n_tokens_title
-  - n_tokens_content
-  - n_unique_tokens
-  - n_non_stop_words
-  - n_non_stop_unique_tokens
-  - num_hrefs
-  - num_self_hrefs
-  - num_imgs
-  - num_videos
-  - n_comments
-  - average_token_length
-  - self_reference_min_shares
-  - self_reference_max_shares
-  - self_reference_avg_shares
-  - num_keywords
-  - kw_min_min
-  - kw_max_min
-  - kw_avg_min
-  - kw_min_max
-  - kw_max_max
-  - kw_avg_max
-  - kw_min_avg
-  - kw_max_avg
-  - kw_avg_avg
-  - lexical_density
-  - imgs_per_1k_words
-  - videos_per_1k_words
-  - media_richness
-  - self_href_ratio
-  - keyword_spread_avg
-  - keyword_quality_score
-  - self_reference_range
-  - is_weekend
-  - comments_per_1k_words
+# ---------------------------------------------------------------------------- preprocessing (fitted fresh per model / fold, on training rows only)
+preprocessing:
+  outlier_handling:
+    method: winsorize                            # extreme feature values are informative -> clip, never delete rows (notebook s8)
+    lower_quantile: 0.01
+    upper_quantile: 0.99
+  imputation:
+    strategy: median
+  scaling: standard
+  encoding: onehot                               # unseen categories are ignored
 
-nominal_features:
-  - weekday
-  - data_channel
-  - title_length_band
-  - freshness_band
+# ---------------------------------------------------------------------------- split
+split:
+  train: 0.70
+  validation: 0.15
+  test: 0.15
+  shuffle: true
+  stratify: false                                # regression problem
 
-# ordinal_features: []
-#   - 
+# ---------------------------------------------------------------------------- model registry
+# `params` are the BASELINE settings: library defaults plus fixed seeds only.
+# `tuning` is applied ONLY by the tuning code path (set_params on a clone); the baselines never see it.
+models:
+  - name: Naive benchmark (train mean)
+    class: sklearn.dummy.DummyRegressor
+    params: {strategy: mean}
+    tuning: {strategy: none}
+  - name: Linear Regression
+    class: sklearn.linear_model.LinearRegression
+    params: {}
+    tuning:
+      strategy: grid
+      space:
+        fit_intercept: [true, false]
+        positive: [false, true]
+  - name: Ridge
+    class: sklearn.linear_model.Ridge
+    params: {random_state: 42}
+    tuning:
+      strategy: grid
+      space:
+        alpha: {type: logspace, low: -2, high: 3, num: 11}
+  - name: Lasso
+    class: sklearn.linear_model.Lasso
+    params: {random_state: 42}
+    tuning:
+      strategy: grid
+      space:
+        alpha: {type: logspace, low: -4, high: -0.5, num: 10}
+  - name: Decision Tree
+    class: sklearn.tree.DecisionTreeRegressor
+    params: {random_state: 42}
+    tuning:
+      strategy: halving
+      n_candidates: 27
+      space:
+        max_depth: {type: randint, low: 2, high: 17}
+        min_samples_leaf: {type: randint, low: 5, high: 200}
+        max_features: {type: uniform, low: 0.3, high: 1.0}
+  - name: Random Forest
+    class: sklearn.ensemble.RandomForestRegressor
+    params: {random_state: 42, n_jobs: 1}
+    tuning:
+      strategy: halving
+      n_candidates: 27
+      space:
+        n_estimators: {type: randint, low: 100, high: 301}
+        max_depth: {type: randint, low: 6, high: 26}
+        min_samples_leaf: {type: randint, low: 5, high: 60}
+        max_features: {type: uniform, low: 0.2, high: 0.8}
+        max_samples: {type: uniform, low: 0.3, high: 1.0}
+  - name: HistGradientBoosting
+    class: sklearn.ensemble.HistGradientBoostingRegressor
+    params: {random_state: 42}
+    tuning:
+      strategy: halving
+      n_candidates: 27
+      space:
+        learning_rate: {type: loguniform, low: 0.02, high: 0.2}
+        max_iter: {type: randint, low: 100, high: 401}
+        max_leaf_nodes: {type: randint, low: 8, high: 64}
+        min_samples_leaf: {type: randint, low: 20, high: 200}
+        l2_regularization: {type: loguniform, low: 0.001, high: 10}
+  - name: K-Nearest Neighbors
+    class: sklearn.neighbors.KNeighborsRegressor
+    params: {}
+    tuning:
+      strategy: halving
+      n_candidates: 27
+      space:
+        n_neighbors: {type: randint, low: 5, high: 151}
+        weights: [uniform, distance]
+        p: [1, 2]
 
-passthrough_features: []
-#   - 
+# ---------------------------------------------------------------------------- tuning (compute-constrained, single-CPU sandbox)
+tuning:
+  stage: tune_regression                         # namespace of every ledger key: "<stage>::<model>"
+  pipeline_version: p1b-v1                       # bump when preprocessing / model code changes (invalidates checkpoints)
+  scoring: r2                                    # on log1p(shares)
+  n_jobs: 1
+  threads: 1                                     # BLAS / OpenMP threads
+  grid_cv_folds: 5                               # GridSearchCV (linear models): full training split
+  halving:                                       # HalvingRandomSearchCV (slow models): subsample, then refit on the full training split
+    cv_folds: 3
+    factor: 3
+    subsample_n: 7290                            # = 810 * 3**2
+    min_resources: 810
+  resume_from_checkpoints: true
 
+# ---------------------------------------------------------------------------- evaluation
+evaluation:
+  metrics: [MAE, MSE, RMSE, R2]                  # reported on the log1p scale (primary) and on raw shares
+  ranking_metric: R2                             # validation R2 on log1p(shares)
+  selection_rule: highest validation R2 among tuned models
+  final_refit_on: train_plus_validation          # then ONE test-set evaluation
+  bootstrap:
+    n_resamples: 1000
+  baseline_reproduction_tolerance: 1.0e-6        # max |difference| vs the notebook baseline table
+  raw_prediction_clip: [0, 20]                   # clip log-scale predictions before expm1 for raw-scale metrics
+  sensitivity:                                   # validation-data-only checks (never the test split)
+    enabled: true
+    time_order_column: timedelta                 # oldest articles first
+    time_train_fraction: 0.70
+    time_validation_fraction: 0.15
 
+# ---------------------------------------------------------------------------- output file names (inside paths.output_dir)
+outputs:
+  baseline_results: baseline_results.csv
+  tuned_results: tuned_results.csv
+  best_params: best_params.json
+  final_test_results: final_test_results.json
+  test_predictions: test_predictions.csv
+  residuals_by_group: test_residuals_by_group.csv
+  final_model: final_model.joblib
+  sensitivity: sensitivity_checks.csv
+  comparison_summary: comparison_summary.csv
+  split_ids: split_ids.json
+  manifest: run_manifest.json
+  ledger: ledger.json
