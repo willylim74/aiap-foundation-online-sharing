@@ -5,3 +5,14 @@ __pycache__/
 .ipynb_checkpoints/
 .env
 venv/
+README-sample.md
+_archive/eda.ipynb
+_archive/main.py
+_archive/README.md
+_archive/requirements.txt
+_archive/src/config.yaml
+_archive/src/data_preparation.py
+_archive/src/model_training.py
+.gitignore
+.gitignore
+.gitignore
